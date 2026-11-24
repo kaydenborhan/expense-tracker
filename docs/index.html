@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Expense Tracker</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<main id="main">
+
+  <!-- ============ ADD / SCAN ============ -->
+  <section id="view-add" class="view active" aria-label="Add expense">
+    <video id="cam" playsinline autoplay muted></video>
+    <div id="camFallback" class="cam-fallback" hidden>
+      <div class="cam-fallback-card">
+        <div class="big-icon" data-icon="camera"></div>
+        <p id="camFallbackMsg">Camera isn't available here.</p>
+        <button id="openCamBtn" class="btn primary">Open camera</button>
+        <button id="retryCamBtn" class="btn ghost">Try live camera again</button>
+      </div>
+    </div>
+
+    <div class="cam-top">
+      <button id="entityChip" class="glass chip-btn" aria-label="Choose who this is for"></button>
+      <div class="cam-top-right">
+        <button id="torchBtn" class="glass round" hidden aria-label="Torch" data-icon="bolt"></button>
+        <button id="syncBadge" class="glass chip-btn" aria-label="Sync status"><span class="dot" id="syncDot"></span><span id="syncText"></span></button>
+      </div>
+    </div>
+
+    <div class="cam-guide" aria-hidden="true"><span></span></div>
+    <div class="cam-hint" id="camHint">Point at a receipt</div>
+
+    <div class="cam-bottom">
+      <button id="manualBtn" class="btn glass-btn wide"><span data-icon="edit"></span> Enter manually</button>
+      <div class="cam-row">
+        <button id="galleryBtn" class="glass round big" aria-label="Choose photo" data-icon="image"></button>
+        <button id="shutter" class="shutter" aria-label="Scan receipt"><span></span></button>
+        <button id="micBtn" class="glass round big" aria-label="Speak an expense" data-icon="mic"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SUMMARY ============ -->
+  <section id="view-summary" class="view" aria-label="Summary">
+    <div class="page">
+      <header class="page-head">
+        <h1>Summary</h1>
+        <button id="filtersToggle" class="btn small ghost"><span data-icon="filter"></span> Filters <span id="filterCount" class="badge" hidden></span></button>
+      </header>
+
+      <div class="chips scroll" id="periodChips"></div>
+      <div id="customRange" class="row2" hidden>
+        <label>From <input type="date" id="fFrom"></label>
+        <label>To <input type="date" id="fTo"></label>
+      </div>
+
+      <div id="filtersPanel" class="panel" hidden>
+        <div class="field">
+          <label>Show</label>
+          <div class="chips wrap" id="entityChips"></div>
+        </div>
+        <div class="field">
+          <label>Categories</label>
+          <button id="catFilterBtn" class="select-like">All categories</button>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label for="fSort">Sort list by</label>
+            <select id="fSort">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="largest">Largest amount</option>
+              <option value="smallest">Smallest amount</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="fGroup">Group by</label>
+            <select id="fGroup">
+              <option value="category">Category</option>
+              <option value="entity">Business / Personal</option>
+              <option value="time">Time</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="fSearch">Search</label>
+          <input id="fSearch" type="search" placeholder="Vendor, details, category…">
+        </div>
+        <button id="resetFilters" class="btn small ghost">Reset filters</button>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <div class="seg" id="chartType" role="tablist">
+        <button data-type="pie">Pie</button>
+        <button data-type="column">Column</button>
+        <button data-type="bar">Bar</button>
+        <button data-type="line">Line</button>
+      </div>
+      <div class="chart-wrap"><canvas id="chart"></canvas><div id="chartEmpty" class="empty" hidden>No expenses match these filters.</div></div>
+      <div id="chartNote" class="note" hidden></div>
+
+      <h2 id="breakdownTitle" class="sec">Breakdown</h2>
+      <div id="breakdown" class="breakdown"></div>
+
+      <h2 class="sec">Expenses <span id="listCount" class="muted"></span></h2>
+      <div id="list" class="list"></div>
+      <button id="moreBtn" class="btn ghost wide" hidden>Show more</button>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section id="view-settings" class="view" aria-label="Settings">
+    <div class="page">
+      <header class="page-head"><h1>Settings</h1></header>
+
+      <div class="card">
+        <h3>Google Sheet sync</h3>
+        <p id="syncStatusText" class="muted"></p>
+        <div class="field"><label for="cfgUrl">Backend URL</label><input id="cfgUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocomplete="off"></div>
+        <div class="field"><label for="cfgToken">App token</label><input id="cfgToken" type="password" placeholder="Token from the setup step" autocomplete="off"></div>
+        <div class="btn-row">
+          <button id="cfgSave" class="btn primary">Save &amp; sync</button>
+          <button id="syncNow" class="btn ghost">Sync now</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Businesses &amp; personal</h3>
+        <p class="muted">Every expense belongs to one of these. Add a business any time.</p>
+        <div id="entList" class="tags"></div>
+        <div class="add-row"><input id="newEntity" placeholder="New business name"><button id="addEntityBtn" class="btn small primary">Add</button></div>
+      </div>
+
+      <div class="card">
+        <h3>Categories</h3>
+        <div id="catList" class="tags"></div>
+        <div class="add-row"><input id="newCategory" placeholder="New category"><button id="addCatBtn" class="btn small primary">Add</button></div>
+      </div>
+
+      <div class="card">
+        <h3>Data</h3>
+        <div class="btn-row">
+          <button id="exportCsv" class="btn ghost">Export CSV</button>
+          <button id="wipeLocal" class="btn danger">Clear this phone's copy</button>
+        </div>
+        <p class="muted small">Clearing only removes the copy on this phone. Your Google Sheet and Drive receipts are untouched and will reload on the next sync.</p>
+      </div>
+      <p class="muted small center">Base currency MYR · v1.0</p>
+    </div>
+  </section>
+</main>
+
+<nav id="tabs" aria-label="Main">
+  <button data-tab="add" class="active"><span data-icon="camera"></span><b>Add</b></button>
+  <button data-tab="summary"><span data-icon="chart"></span><b>Summary</b></button>
+  <button data-tab="settings"><span data-icon="cog"></span><b>Settings</b></button>
+</nav>
+
+<!-- ============ EXPENSE FORM ============ -->
+<div id="formSheet" class="sheet" hidden>
+  <div class="sheet-card">
+    <header class="sheet-head">
+      <button id="fCancel" class="btn ghost small">Cancel</button>
+      <h2 id="formTitle">New expense</h2>
+      <button id="fSaveTop" class="btn primary small">Save</button>
+    </header>
+    <div class="sheet-body">
+      <div id="fBanner" class="banner" hidden></div>
+      <div id="fImgWrap" class="img-wrap" hidden>
+        <img id="fImg" alt="Receipt">
+        <button id="fLoadImg" class="btn small ghost" hidden>Load receipt image</button>
+        <a id="fOpenImg" class="btn small ghost" target="_blank" rel="noopener" hidden>Open in Drive</a>
+      </div>
+
+      <div class="field"><label for="fDate">Date</label><input id="fDate" type="date" required></div>
+
+      <div class="row2">
+        <div class="field"><label for="fAmount">Amount</label><input id="fAmount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div>
+        <div class="field"><label for="fCur">Currency</label><select id="fCur"></select></div>
+      </div>
+      <div id="fMyrRow" class="field fx" hidden>
+        <label for="fMyr">Charged in MYR</label>
+        <input id="fMyr" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00">
+        <div id="fRateNote" class="note"></div>
+      </div>
+
+      <div class="field"><label for="fEntity">For</label><select id="fEntity"></select>
+        <input id="fNewEntity" class="mt" placeholder="New business name" hidden></div>
+
+      <div class="field"><label for="fCat">Category</label><select id="fCat"></select>
+        <input id="fNewCat" class="mt" placeholder="New category name" hidden></div>
+
+      <div class="field"><label for="fVendor">Vendor</label><input id="fVendor" placeholder="e.g. Petronas" autocomplete="off"></div>
+      <div class="field"><label for="fDetails">Details</label><input id="fDetails" placeholder="What was it for?" autocomplete="off"></div>
+
+      <div class="btn-row sticky">
+        <button id="fDelete" class="btn danger" hidden>Delete</button>
+        <button id="fSave" class="btn primary grow">Save expense</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ VOICE ============ -->
+<div id="voiceSheet" class="sheet" hidden>
+  <div class="sheet-card short">
+    <header class="sheet-head">
+      <button id="vCancel" class="btn ghost small">Cancel</button>
+      <h2>Speak an expense</h2>
+      <span style="width:64px"></span>
+    </header>
+    <div class="sheet-body center">
+      <button id="vMic" class="mic-big" aria-label="Start / stop listening" data-icon="mic"></button>
+      <p id="vStatus" class="muted">Tap the mic and say it naturally.</p>
+      <p class="hint">“Forty-five ringgit fuel at Petronas yesterday for the business”</p>
+      <textarea id="vText" rows="3" placeholder="…or type it here"></textarea>
+      <button id="vGo" class="btn primary wide">Add this expense</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ GENERIC PICKER ============ -->
+<div id="pickSheet" class="sheet" hidden>
+  <div class="sheet-card short">
+    <header class="sheet-head">
+      <button id="pCancel" class="btn ghost small">Close</button>
+      <h2 id="pTitle">Choose</h2>
+      <button id="pDone" class="btn primary small">Done</button>
+    </header>
+    <div class="sheet-body"><div id="pBody" class="pick-list"></div></div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<input type="file" id="fileGallery" accept="image/*" hidden>
+<input type="file" id="fileCamera" accept="image/*" capture="environment" hidden>
+
+<script src="vendor/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
