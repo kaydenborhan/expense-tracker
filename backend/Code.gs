@@ -261,23 +261,21 @@ function getReceipt_(fileId) {
 /* Claude: receipt + voice parsing                                     */
 /* ------------------------------------------------------------------ */
 
-function expenseTool_(categories, entities) {
+function expenseSchema_() {
+  const nullable = t => ({ anyOf: [{ type: t }, { type: 'null' }] });
   return {
-    name: 'record_expense',
-    description: 'Record the expense details extracted from the input.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        date: { type: ['string', 'null'], description: 'YYYY-MM-DD, or null if not stated or unreadable.' },
-        vendor: { type: 'string', description: 'Shop / merchant / payee name. Empty string if unknown.' },
-        details: { type: 'string', description: 'Short description of what was bought, max ~80 chars.' },
-        amount: { type: ['number', 'null'], description: 'Total amount paid including tax, as a plain number. null if unknown.' },
-        currency: { type: 'string', description: 'ISO 4217 code, e.g. MYR, USD, SGD. "RM" means MYR.' },
-        category: { type: 'string', description: 'Best match from the existing category list. Only invent a new short name if none fit.' },
-        entity: { type: ['string', 'null'], description: 'One of the existing entities ONLY if the input clearly says which; otherwise null.' }
-      },
-      required: ['date', 'vendor', 'details', 'amount', 'currency', 'category', 'entity']
-    }
+    type: 'object',
+    properties: {
+      date: Object.assign(nullable('string'), { description: 'YYYY-MM-DD, or null if not stated or unreadable.' }),
+      vendor: { type: 'string', description: 'Shop / merchant / payee name. Empty string if unknown.' },
+      details: { type: 'string', description: 'Short description of what was bought, max ~80 chars.' },
+      amount: Object.assign(nullable('number'), { description: 'Total amount paid including tax, as a plain number. null if unknown.' }),
+      currency: { type: 'string', description: 'ISO 4217 code, e.g. MYR, USD, SGD. "RM" means MYR.' },
+      category: { type: 'string', description: 'Best match from the existing category list. Only invent a new short name if none fit.' },
+      entity: Object.assign(nullable('string'), { description: 'One of the existing entities ONLY if the input clearly says which; otherwise null.' })
+    },
+    required: ['date', 'vendor', 'details', 'amount', 'currency', 'category', 'entity'],
+    additionalProperties: false
   };
 }
 
@@ -302,18 +300,18 @@ function parseReceipt_(req) {
     { type: 'text', text: 'Read this receipt and record the expense.' }
   ];
   const parsed = callClaude_(MODEL_RECEIPT, systemPrompt_(req.categories, req.entities, req.today), content,
-    expenseTool_(req.categories, req.entities));
+    expenseSchema_());
   return { ok: true, parsed: parsed };
 }
 
 function parseText_(req) {
   const parsed = callClaude_(MODEL_TEXT, systemPrompt_(req.categories, req.entities, req.today),
     'The user said (speech-to-text, may contain small mistakes): "' + req.text + '"',
-    expenseTool_(req.categories, req.entities));
+    expenseSchema_());
   return { ok: true, parsed: parsed };
 }
 
-function callClaude_(model, system, content, tool) {
+function callClaude_(model, system, content, schema) {
   const key = prop_('ANTHROPIC_API_KEY');
   if (!key) throw new Error('ANTHROPIC_API_KEY is not set in Script Properties');
   const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
@@ -323,10 +321,9 @@ function callClaude_(model, system, content, tool) {
     muteHttpExceptions: true,
     payload: JSON.stringify({
       model: model,
-      max_tokens: 1024,
+      max_tokens: 4096,
       system: system,
-      tools: [tool],
-      tool_choice: { type: 'tool', name: tool.name },
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: schema } },
       messages: [{ role: 'user', content: content }]
     })
   });
@@ -335,7 +332,8 @@ function callClaude_(model, system, content, tool) {
   if (code !== 200) {
     throw new Error('Claude API error ' + code + ': ' + ((body.error && body.error.message) || res.getContentText()));
   }
-  const block = (body.content || []).filter(b => b.type === 'tool_use')[0];
+  if (body.stop_reason === 'refusal') throw new Error('Claude declined to read this one');
+  const block = (body.content || []).filter(b => b.type === 'text')[0];
   if (!block) throw new Error('Claude returned no result');
-  return block.input;
+  return JSON.parse(block.text);
 }
